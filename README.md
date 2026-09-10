@@ -5,9 +5,9 @@ The Mac then stays awake, also when the lid is closed.
 
 ## Install
 
-Download **`Sleepless-1.0.dmg`** from the
-[releases](https://github.com/jdanino/sleepless/releases/latest), open it, and
-drag **Sleepless** into **Applications**.
+Download the **`.dmg`** from the
+[latest release](https://github.com/jdanino/sleepless/releases/latest), open
+it, and drag **Sleepless** into **Applications**.
 
 The app is signed with a Developer ID and notarised by Apple, so a plain
 double-click opens it. There is no right-click trick and no `xattr` command.
