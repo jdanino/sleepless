@@ -101,6 +101,8 @@ enum SudoRule {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let askEveryTimeKey = "AskForPasswordEveryTime"
     private let explainedKey = "HasExplainedTheFirstPassword"
+    private let batteryGuardKey = "LetItSleepOnLowBattery"
+    private let lowBattery = 20
 
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
@@ -113,7 +115,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let sudoItem = NSMenuItem(title: "Toggle without a password", action: #selector(toggleSudoRule), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
+    private let batteryItem = NSMenuItem(title: "", action: #selector(toggleBatteryGuard), keyEquivalent: "")
+    private let noteItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private var pendingUpdate: Release?
+
+    /// Set when the user says at quit that the Mac must stay awake.
+    private var keepAwakeOnPurpose = false
+    /// What the battery guard last did, shown in the menu.
+    private var note: String?
+    /// Stops a warning that repeats every poll.
+    private var warnedAboutBattery = false
 
     private var askEveryTime: Bool {
         get { UserDefaults.standard.bool(forKey: askEveryTimeKey) }
@@ -125,7 +136,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         set { UserDefaults.standard.set(newValue, forKey: explainedKey) }
     }
 
+    private var batteryGuard: Bool {
+        get { UserDefaults.standard.bool(forKey: batteryGuardKey) }
+        set { UserDefaults.standard.set(newValue, forKey: batteryGuardKey) }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The guard is on unless the user turns it off.
+        UserDefaults.standard.register(defaults: [batteryGuardKey: true])
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.target = self
@@ -136,9 +155,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         readState()
         updateUI()
 
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        // Every 30 seconds, not every 5. The menu also refreshes when it opens,
+        // so the number you look at is always fresh, and an app about power
+        // does not start 17 000 processes a day to watch one flag.
+        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             guard let self, !self.busy else { return }
             self.readState()
+            self.guardTheBattery()
             self.updateUI()
         }
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -154,13 +177,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() {
         stateItem.isEnabled = false
-        for item in [stateItem, NSMenuItem.separator(), toggleItem, NSMenuItem.separator(),
-                     sudoItem, loginItem, updateItem, NSMenuItem.separator()] {
+        noteItem.isEnabled = false
+        for item in [stateItem, noteItem, NSMenuItem.separator(), toggleItem, NSMenuItem.separator(),
+                     batteryItem, sudoItem, loginItem, updateItem, NSMenuItem.separator()] {
             menu.addItem(item)
         }
-        menu.addItem(NSMenuItem(title: "Quit Sleepless",
-                                action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        for item in [toggleItem, sudoItem, loginItem, updateItem] { item.target = self }
+        let quitItem = NSMenuItem(title: "Quit Sleepless", action: #selector(quitRequested), keyEquivalent: "q")
+        menu.addItem(quitItem)
+        for item in [toggleItem, batteryItem, sudoItem, loginItem, updateItem, quitItem] {
+            item.target = self
+        }
     }
 
     // MARK: State
@@ -194,6 +220,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         loginItem.state = isLoginEnabled ? .on : .off
         updateItem.title = pendingUpdate.map { "Version \($0.version) is available…" }
             ?? "Check for Updates…"
+        batteryItem.title = "Let it sleep under \(lowBattery)% battery"
+        batteryItem.state = batteryGuard ? .on : .off
+        noteItem.title = note ?? ""
+        noteItem.isHidden = note == nil
     }
 
     // MARK: Actions
@@ -205,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showMenu() {
+        readState()
         updateUI()
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
@@ -377,7 +408,99 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateUI()
     }
 
-    @objc private func wake() { finish() }
+    @objc private func wake() {
+        readState()
+        guardTheBattery()
+        finish()
+    }
+
+    // MARK: The battery guard
+
+    @objc private func toggleBatteryGuard() {
+        batteryGuard.toggle()
+        if batteryGuard { warnedAboutBattery = false }
+        updateUI()
+    }
+
+    /// A Mac that stays awake in a closed bag on a flat battery gets hot and
+    /// empty. When the charge falls under the limit, give sleep back.
+    private func guardTheBattery() {
+        guard batteryGuard, sleepDisabled, !busy else { return }
+        guard let power = Power.read(), power.onBattery else {
+            warnedAboutBattery = false   // On the charger again.
+            return
+        }
+        guard power.percent <= lowBattery else {
+            warnedAboutBattery = false
+            return
+        }
+
+        // Act without a word only when the rule permits it. A password dialog
+        // that appears by itself, with a closed lid, would be worse than the
+        // problem.
+        guard SudoRule.isInstalled else {
+            if !warnedAboutBattery {
+                warnedAboutBattery = true
+                alert("The battery is at \(power.percent)%",
+                      "Your Mac is set to stay awake, and Sleepless cannot change that "
+                      + "without your password. Toggle it by hand, or switch on "
+                      + "\"Toggle without a password\" in the menu.")
+            }
+            return
+        }
+
+        busy = true
+        updateUI()
+        let percent = power.percent
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = Privileged.pmsetQuietly(false)
+            DispatchQueue.main.async {
+                self.busy = false
+                if ok { self.note = "Sleep was given back at \(percent)% battery" }
+                self.readState()
+                self.updateUI()
+            }
+        }
+    }
+
+    // MARK: Quitting
+
+    @objc private func quitRequested() {
+        guard sleepDisabled else { NSApp.terminate(nil); return }
+
+        let alert = NSAlert()
+        alert.messageText = "Sleep is off. Let the Mac sleep again?"
+        alert.informativeText = "If it stays awake, your Mac will not sleep, also with the "
+            + "lid closed, and after Sleepless quits nothing shows it any more."
+        alert.addButton(withTitle: "Let it sleep and quit")
+        alert.addButton(withTitle: "Keep it awake and quit")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if SudoRule.isInstalled {
+                _ = Privileged.pmsetQuietly(false)
+            } else {
+                _ = Privileged.runAsRoot(Privileged.pmsetCommand(false))
+            }
+            readState()
+            NSApp.terminate(nil)
+        case .alertSecondButtonReturn:
+            keepAwakeOnPurpose = true
+            NSApp.terminate(nil)
+        default:
+            break   // Cancel: stay running.
+        }
+    }
+
+    /// Also covers a log out and a shut down, where no window can appear. It
+    /// works silently, so it needs the rule. A force quit or `kill -9` sends
+    /// no such message, and then the setting stays as it is.
+    func applicationWillTerminate(_ notification: Notification) {
+        guard sleepDisabled, !keepAwakeOnPurpose, SudoRule.isInstalled else { return }
+        _ = Privileged.pmsetQuietly(false)
+    }
 
     private func finish() {
         busy = false

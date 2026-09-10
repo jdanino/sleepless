@@ -40,8 +40,9 @@ That needs the Xcode command-line tools (`xcode-select --install`).
   because it cannot sleep.
 - Face with **closed eyes**: sleep is on, the Mac may sleep.
 
-The app reads the true state from `pmset -g` every 5 seconds and after wake.
-Thus the icon is correct, also when you change the setting from the terminal.
+The app reads the true state from `pmset -g` every 30 seconds, when the menu
+opens, and after the Mac wakes. Thus the icon is correct, also when you change
+the setting from the terminal.
 
 ## Updates
 
@@ -91,10 +92,30 @@ checkmark back to install the rule again.
 If the rule is deleted from outside the app, the next toggle finds this and
 asks for the password again.
 
-## Warning
+## It gives sleep back by itself
 
-`disablesleep 1` stays active after a restart. The app does not reset it when
-you quit. Set the toggle back to sleep before you put the Mac in a bag.
+`disablesleep 1` stays active after a restart, and a Mac that stays awake in a
+closed bag gets hot and empty. Sleepless therefore hands sleep back in two
+cases.
+
+**On a low battery.** While the Mac is on battery and the charge falls to 20 %
+or under, the app lets it sleep again and says so in the menu:
+*Sleep was given back at 19 % battery*. Switch this off with the menu item
+**Let it sleep under 20 % battery**.
+
+**When you quit.** If sleep is off, the app asks first:
+
+> **Sleep is off. Let the Mac sleep again?**
+> ( Let it sleep and quit ) ( Keep it awake and quit ) ( Cancel )
+
+A log out or a shut down does the same without a question.
+
+Both need the password-free rule, because a password dialog that appears by
+itself, with a closed lid, would be worse than the problem. Without the rule
+the app warns instead of acting.
+
+**What still gets past this:** a force quit or `kill -9`. macOS sends no
+message then, and the setting stays as it is.
 
 ## For developers
 
