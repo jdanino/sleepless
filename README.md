@@ -167,13 +167,23 @@ not sign with the Developer ID and it does not touch a release.
 5. deletes the key material from the runner;
 6. attaches the DMG to the GitHub release.
 
-So a release is:
+So a release is two steps:
+
+1. Change `CFBundleShortVersionString` in `build.sh`, and commit it. That
+   number names the DMG and it is what the update check compares against.
+2. Tag and push:
 
 ```bash
-git tag v1.2 && git push origin v1.2
+git tag v1.3 && git push origin v1.3
 ```
 
 About 1 minute 40, most of it waiting for Apple.
+
+**The tag and that number must agree.** `release.sh` compares them straight
+after the build, before anything is signed or sent to Apple, and stops with
+`The tag says 1.3, but the app says 1.2.` Without that check a tag `v1.3` with
+an unchanged `build.sh` would put an old build on a new release, and every
+installed copy would keep believing it is up to date.
 
 **The five secrets** in the repository settings:
 
