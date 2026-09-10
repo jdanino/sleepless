@@ -101,6 +101,25 @@ hardened runtime, which notarisation demands, can stop
 app needs a privileged helper (`SMAppService` daemon plus XPC) instead of the
 sudoers rule.
 
+### Continuous integration
+
+`.github/workflows/build.yml` builds on each push and each pull request. It:
+
+- builds with `./build.sh -` on `macos-latest`;
+- checks that the binary holds `arm64` **and** `x86_64`;
+- lints `Info.plist`, confirms the icon, and verifies the signature;
+- uploads `Sleepless.zip` as a build artifact.
+
+A tag that starts with `v` also makes a GitHub release:
+
+```bash
+git tag v1.0 && git push origin v1.0
+```
+
+The app from CI has an ad-hoc signature only. Gatekeeper blocks it on another
+Mac. For a real distribution use `release.sh` on a Mac that holds your
+Developer ID certificate.
+
 ### Other ways
 
 - **Build from source.** The user clones the repository and runs `./build.sh`.
