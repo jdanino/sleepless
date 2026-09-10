@@ -1,0 +1,66 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show the toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Build the app
+        run: ./build.sh -          # "-" builds only, it does not install
+
+      - name: Check the result
+        run: |
+          set -euo pipefail
+          APP=build/Sleepless.app
+          BIN="$APP/Contents/MacOS/Sleepless"
+
+          # Both architectures must be present.
+          ARCHS="$(lipo -archs "$BIN")"
+          echo "Architectures: $ARCHS"
+          for want in arm64 x86_64; do
+            case " $ARCHS " in *" $want "*) ;; *) echo "Missing $want"; exit 1;; esac
+          done
+
+          # The bundle must be complete and correct.
+          plutil -lint "$APP/Contents/Info.plist"
+          test -f "$APP/Contents/Resources/Sleepless.icns" || { echo "No icon"; exit 1; }
+          codesign --verify --strict --verbose=2 "$APP"
+
+          # The app must not start in the Dock.
+          /usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$APP/Contents/Info.plist"
+
+      - name: Make a zip
+        run: ditto -c -k --keepParent build/Sleepless.app build/Sleepless.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sleepless-app
+          path: build/Sleepless.zip
+          if-no-files-found: error
+
+      - name: Make a release on a tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" build/Sleepless.zip \
+            --title "Sleepless ${GITHUB_REF_NAME}" \
+            --notes "Built by GitHub Actions. The app has an ad-hoc signature only.
+          Gatekeeper blocks it on another Mac. Use \`./release.sh\` on a Mac with a
+          Developer ID certificate to make a signed and notarised DMG."
