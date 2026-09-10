@@ -160,14 +160,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateUI() {
-        let description = sleepDisabled ? "Sleep is off" : "Sleep is on"
+        let description = sleepDisabled
+            ? "Your Mac will zombie roam when closed"
+            : "Your Mac will go to sleep when closed"
         if let button = statusItem.button {
             // The face has open eyes while the Mac stays awake.
             let icon = statusImage(awake: sleepDisabled, size: 18)
             icon.accessibilityDescription = description
             button.image = icon
             button.appearsDisabled = busy
-            button.toolTip = "Sleepless — \(description)"
+            button.toolTip = description
         }
         stateItem.title = sleepDisabled ? "Sleep is disabled" : "Sleep is enabled"
         toggleItem.title = sleepDisabled ? "Let the Mac sleep" : "Keep the Mac awake"
