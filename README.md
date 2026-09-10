@@ -40,9 +40,9 @@ That needs the Xcode command-line tools (`xcode-select --install`).
   because it cannot sleep.
 - Face with **closed eyes**: sleep is on, the Mac may sleep.
 
-The app reads the true state from `pmset -g` every 30 seconds, when the menu
-opens, and after the Mac wakes. Thus the icon is correct, also when you change
-the setting from the terminal.
+The app reads the true state from `pmset -g` when you toggle it, when the menu
+opens, after the Mac wakes, and every 5 minutes as a backstop. Thus the icon
+is correct, also when you change the setting from the terminal.
 
 ## Updates
 
@@ -99,7 +99,9 @@ closed bag gets hot and empty. Sleepless therefore hands sleep back in two
 cases.
 
 **On a low battery.** While the Mac is on battery and the charge falls to 20 %
-or under, the app lets it sleep again and says so in the menu:
+or under, the app lets it sleep again and says so in the menu. It looks every
+5 minutes, which is often enough: a battery needs many minutes to fall one
+percent. The menu says
 *Sleep was given back at 19 % battery*. Switch this off with the menu item
 **Let it sleep under 20 % battery**.
 

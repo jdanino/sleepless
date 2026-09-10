@@ -155,10 +155,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         readState()
         updateUI()
 
-        // Every 30 seconds, not every 5. The menu also refreshes when it opens,
-        // so the number you look at is always fresh, and an app about power
-        // does not start 17 000 processes a day to watch one flag.
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+        // Every 5 minutes. This timer is only a backstop, for the one case
+        // nothing else covers: somebody changing the setting with `pmset` in a
+        // terminal. Your own toggle, opening the menu and waking the Mac all
+        // read the state by themselves. 288 runs a day instead of 17 000.
+        //
+        // The battery guard rides on the same timer. That is late by up to 5
+        // minutes, and that is fine: a battery needs many minutes to fall one
+        // percent, and half an hour to go from 20 to empty.
+        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             guard let self, !self.busy else { return }
             self.readState()
             self.guardTheBattery()
