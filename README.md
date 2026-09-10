@@ -5,24 +5,24 @@ The Mac then stays awake, also when the lid is closed.
 
 ## Install
 
-**Build it yourself.** This is the way with no warning, because your own Mac
-signs the app.
+Download **`Sleepless-1.0.dmg`** from the
+[releases](https://github.com/jdanino/sleepless/releases/latest), open it, and
+drag **Sleepless** into **Applications**.
+
+The app is signed with a Developer ID and notarised by Apple, so a plain
+double-click opens it. There is no right-click trick and no `xattr` command.
+The ticket is stapled to the app itself, so the first start also works with no
+network.
+
+The app has no Dock icon. Look for the face in the menu bar at the top right.
+
+**Or build it yourself:**
 
 ```bash
 git clone https://github.com/jdanino/sleepless.git && cd sleepless && ./build.sh && open ~/Applications/Sleepless.app
 ```
 
-It needs the Xcode command-line tools (`xcode-select --install`).
-
-**Or take the build from the releases.** The app there has an ad-hoc signature
-only, so Gatekeeper stops it after a download in a browser. A download in the
-terminal does not get the quarantine flag, so this works:
-
-```bash
-gh release download v1.0 --repo jdanino/sleepless --dir /tmp && unzip -o /tmp/Sleepless.zip -d /Applications && open /Applications/Sleepless.app
-```
-
-The app has no Dock icon. Look for the face in the menu bar.
+That needs the Xcode command-line tools (`xcode-select --install`).
 
 ## Use
 
