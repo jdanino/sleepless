@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateUI() {
         let description = sleepDisabled
-            ? "Your Mac will zombie roam when closed"
+            ? "Your Mac will stay awake when closed"
             : "Your Mac will go to sleep when closed"
         if let button = statusItem.button {
             // The face has open eyes while the Mac stays awake.
