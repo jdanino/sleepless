@@ -171,8 +171,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.appearsDisabled = busy
             button.toolTip = description
         }
-        stateItem.title = sleepDisabled ? "Sleep is disabled" : "Sleep is enabled"
-        toggleItem.title = sleepDisabled ? "Let the Mac sleep" : "Keep the Mac awake"
+        // The state line carries the character. The action line must be plain,
+        // because the user acts on it.
+        stateItem.title = sleepDisabled ? "Zombie roams when closed" : "Sleeps when closed"
+        toggleItem.title = sleepDisabled ? "Let it sleep when closed" : "Keep it awake when closed"
         sudoItem.state = SudoRule.isInstalled ? .on : .off
         loginItem.state = isLoginEnabled ? .on : .off
     }
