@@ -15,8 +15,6 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APP="$HERE/build/Sleepless.app"
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || echo 1.0)"
-DMG="$HERE/build/Sleepless-$VERSION.dmg"
 PROFILE="${NOTARY_PROFILE:-sleepless}"
 TEAM_ID="${APPLE_TEAM_ID:-25GE53E3A4}"
 
@@ -57,12 +55,37 @@ echo "Signing identity: $IDENTITY"
 # 1. Build, but do not install.
 "$HERE/build.sh" -
 
+# The version comes from the bundle that was just built. Read it only now:
+# PlistBuddy writes its error to stdout, so on a missing file it would put a
+# whole error message into the name of the DMG.
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+DMG="$HERE/build/Sleepless-$VERSION.dmg"
+echo "Version: $VERSION"
+
 # 2. Sign with the hardened runtime. Notarisation demands it.
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
 
-# 3. Make the DMG.
+if ! have_credential; then
+  echo "No notarytool credential named '$PROFILE'. Run ./release.sh --check"
+  exit 1
+fi
+
+# 3. Notarise the app FIRST and staple the ticket to it.
+#
+#    Order matters. The ticket must be inside the app before the app goes into
+#    the DMG. A ticket on the DMG alone disappears the moment the user drags
+#    the app to Applications: Gatekeeper must then ask Apple over the network,
+#    and a first start with no network fails.
+ZIP="$HERE/build/Sleepless-notarize.zip"
+rm -f "$ZIP"
+ditto -c -k --keepParent "$APP" "$ZIP"
+xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+xcrun stapler staple "$APP"
+rm -f "$ZIP"
+
+# 4. Make the DMG around the stapled app.
 rm -rf "$HERE/build/dmg" "$DMG"
 mkdir -p "$HERE/build/dmg"
 cp -R "$APP" "$HERE/build/dmg/"
@@ -71,12 +94,8 @@ hdiutil create -volname "Sleepless" -srcfolder "$HERE/build/dmg" \
   -ov -format UDZO "$DMG"
 codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 
-# 4. Notarise and staple.
-if ! have_credential; then
-  echo "No notarytool credential named '$PROFILE'. See the top of this file."
-  echo "The DMG is signed but not notarised: $DMG"
-  exit 1
-fi
+# 5. Notarise the DMG itself. Gatekeeper judges a disk image on its own, so
+#    without this the app is good while opening the DMG still warns.
 xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
