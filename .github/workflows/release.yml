@@ -20,6 +20,9 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      - name: Run the tests
+        run: ./test.sh
+
       - name: Import the signing certificate
         env:
           CERT_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}

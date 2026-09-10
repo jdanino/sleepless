@@ -20,6 +20,9 @@ jobs:
           sw_vers
           swift --version
 
+      - name: Run the tests
+        run: ./test.sh
+
       - name: Build the app
         run: ./build.sh -          # "-" builds only, it does not install
 

@@ -13,12 +13,33 @@ Sleepless you need none of it — see [README.md](README.md).
 Requirements: the Xcode command-line tools (`swiftc`), macOS 13 or later.
 The app is ad-hoc signed. It is not notarised, because it is a local build.
 
+## Tests
+
+```bash
+./test.sh
+```
+
+It links the real source files, minus `main.swift`, which holds the top-level
+code of the app. So it tests the code the app runs, not a copy. 27 checks:
+the version comparison, shell quoting, the exact `pmset` commands, the
+sudoers rule (including a real `visudo -cqf` on it), the battery reading, the
+two icon states, and one call to GitHub that is skipped, not failed, when
+there is no network.
+
+Both workflows run it. Nothing is signed or notarised before it passes.
+
+**Break the code on purpose now and then.** A test that cannot fail is worth
+nothing. Inverting the comparison in `Update.isNewer` must turn 7 checks red,
+and widening the sudoers rule to `NOPASSWD: ALL` must turn 1 red. That last
+one already found a weak assertion in the test itself.
+
 ## Files
 
 - `src/main.swift` — the app (menu bar, state, privileges).
 - `src/Icon.swift` — the face drawing, in two states. It makes the menu-bar
   template image and the Finder icon from the same code. No image files are
   necessary.
+- `tests/main.swift` — the tests. `test.sh` builds and runs them.
 - `tools/main.swift` — a small tool. `sheet` makes a preview PNG of both
   states, `docs` makes the picture at the top of this file, and `iconset`
   makes the PNG set for `iconutil`. In the preview sheet the left image of
