@@ -16,6 +16,12 @@ network.
 
 The app has no Dock icon. Look for the face in the menu bar at the top right.
 
+**Drag it to Applications first. Do not start it from the disk image.** macOS
+runs an app that is still in a download or on a disk image from a random
+read-only shadow copy (App Translocation). The toggle still works there, but
+*Open at Login* records a path that is gone at the next start. A drag in the
+Finder ends the translocation.
+
 **Or build it yourself:**
 
 ```bash
