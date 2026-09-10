@@ -35,6 +35,23 @@ That needs the Xcode command-line tools (`xcode-select --install`).
 The app reads the true state from `pmset -g` every 5 seconds and after wake.
 Thus the icon is correct, also when you change the setting from the terminal.
 
+## Updates
+
+The app looks for a newer version 5 seconds after it starts, and then one time
+each day. It asks only `api.github.com` for the newest release of this
+repository, and it sends nothing about you.
+
+- Nothing found: the app stays silent.
+- Something found: the menu says **"Version 1.3 is available…"**. Click it to
+  open the release page.
+- The menu item **Check for Updates…** does the same look immediately, and
+  says the result in a window.
+
+The app does **not** replace itself. You download the new DMG and drag it over
+the old app. That is a deliberate choice: an app that can replace its own
+files is also a way to install anything, and the check that stops that misuse
+is easy to get wrong.
+
 ## Password
 
 `pmset -a disablesleep` needs root permission. The app asks for your password

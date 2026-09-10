@@ -111,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let toggleItem = NSMenuItem(title: "Toggle", action: #selector(toggle), keyEquivalent: "t")
     private let sudoItem = NSMenuItem(title: "Toggle without a password", action: #selector(toggleSudoRule), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
+    private let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
+    private var pendingUpdate: Release?
 
     private var askEveryTime: Bool {
         get { UserDefaults.standard.bool(forKey: askEveryTimeKey) }
@@ -135,17 +137,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(wake), name: NSWorkspace.didWakeNotification, object: nil)
+
+        // A quiet look for a newer version: shortly after start, then once a
+        // day. It says nothing unless it finds one, and then only in the menu.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { self.lookForUpdate(quiet: true) }
+        Timer.scheduledTimer(withTimeInterval: 24 * 3600, repeats: true) { [weak self] _ in
+            self?.lookForUpdate(quiet: true)
+        }
     }
 
     private func buildMenu() {
         stateItem.isEnabled = false
         for item in [stateItem, NSMenuItem.separator(), toggleItem, NSMenuItem.separator(),
-                     sudoItem, loginItem, NSMenuItem.separator()] {
+                     sudoItem, loginItem, updateItem, NSMenuItem.separator()] {
             menu.addItem(item)
         }
         menu.addItem(NSMenuItem(title: "Quit Sleepless",
                                 action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        for item in [toggleItem, sudoItem, loginItem] { item.target = self }
+        for item in [toggleItem, sudoItem, loginItem, updateItem] { item.target = self }
     }
 
     // MARK: State
@@ -177,6 +186,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggleItem.title = sleepDisabled ? "Let it sleep when closed" : "Keep it awake when closed"
         sudoItem.state = SudoRule.isInstalled ? .on : .off
         loginItem.state = isLoginEnabled ? .on : .off
+        updateItem.title = pendingUpdate.map { "Version \($0.version) is available…" }
+            ?? "Check for Updates…"
     }
 
     // MARK: Actions
@@ -264,6 +275,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SudoRule.discard(staged)
         }
         updateUI()
+    }
+
+    // MARK: Updates
+
+    @objc private func updateItemClicked() {
+        // The menu already says a version is waiting, so go straight there.
+        if let release = pendingUpdate {
+            NSWorkspace.shared.open(release.pageURL)
+            return
+        }
+        lookForUpdate(quiet: false)
+    }
+
+    /// `quiet` means: change the menu, but do not open a window.
+    private func lookForUpdate(quiet: Bool) {
+        Update.check { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let release):
+                self.pendingUpdate = release
+                self.updateUI()
+                guard !quiet else { return }
+                if let release {
+                    self.offer(release)
+                } else {
+                    self.alert("Sleepless is up to date",
+                               "You have version \(Update.currentVersion).")
+                }
+            case .failure(let error):
+                guard !quiet else { return }
+                self.alert("Cannot look for a newer version", error.message)
+            }
+        }
+    }
+
+    private func offer(_ release: Release) {
+        let a = NSAlert()
+        a.messageText = "Sleepless \(release.version) is available"
+        a.informativeText = "You have \(Update.currentVersion). "
+            + "The release page has the DMG."
+        a.addButton(withTitle: "Open the release page")
+        a.addButton(withTitle: "Later")
+        NSApp.activate(ignoringOtherApps: true)
+        if a.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(release.pageURL)
+        }
     }
 
     private var isLoginEnabled: Bool { SMAppService.mainApp.status == .enabled }

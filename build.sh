@@ -20,8 +20,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>Sleepless</string>
   <key>CFBundleIconFile</key><string>Sleepless</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.1</string>
-  <key>CFBundleVersion</key><string>2</string>
+  <key>CFBundleShortVersionString</key><string>1.2</string>
+  <key>CFBundleVersion</key><string>3</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHumanReadableCopyright</key><string>Sleepless</string>
@@ -34,7 +34,7 @@ for ARCH in arm64 x86_64; do
   swiftc -O \
     -target "$ARCH-apple-macos13.0" \
     -o "$HERE/build/Sleepless-$ARCH" \
-    "$HERE/src/Icon.swift" "$HERE/src/main.swift"
+    "$HERE"/src/*.swift
 done
 lipo -create -output "$APP/Contents/MacOS/Sleepless" \
   "$HERE/build/Sleepless-arm64" "$HERE/build/Sleepless-x86_64"
