@@ -20,18 +20,23 @@ The app is ad-hoc signed. It is not notarised, because it is a local build.
 ```
 
 It links the real source files, minus `main.swift`, which holds the top-level
-code of the app. So it tests the code the app runs, not a copy. 27 checks:
-the version comparison, shell quoting, the exact `pmset` commands, the
-sudoers rule (including a real `visudo -cqf` on it), the battery reading, the
-two icon states, and one call to GitHub that is skipped, not failed, when
-there is no network.
+code of the app. So it tests the code the app runs, not a copy. 39 checks:
+the version comparison, how a length of time is spelled, shell quoting, the
+exact `pmset` commands, the sudoers rule (including a real `visudo -cqf` on
+it), the battery reading, the two icon states, and one call to GitHub that is
+skipped, not failed, when there is no network.
 
 Both workflows run it. Nothing is signed or notarised before it passes.
 
 **Break the code on purpose now and then.** A test that cannot fail is worth
 nothing. Inverting the comparison in `Update.isNewer` must turn 7 checks red,
-and widening the sudoers rule to `NOPASSWD: ALL` must turn 1 red. That last
-one already found a weak assertion in the test itself.
+widening the sudoers rule to `NOPASSWD: ALL` must turn 1 red, and changing
+`.rounded(.up)` to `.rounded(.down)` in `spellDuration` must turn 2 red.
+
+The exercise has already paid twice. It found that the sudoers assertion
+looked for one exact spelling, so `ALL=(root) NOPASSWD: ALL` walked past it.
+And it found that every duration case passed either way, because `max(rest, 1)`
+hid the rounding — 90 seconds and 3630 seconds were added to tell them apart.
 
 ## Files
 

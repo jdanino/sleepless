@@ -9,6 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let batteryGuardKey = "LetItSleepOnLowBattery"
     private let lowBattery = 20
 
+    /// The choices in the "Keep it awake for" submenu, in minutes.
+    static let durations: [(String, Int)] = [
+        ("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60),
+        ("2 hours", 120), ("4 hours", 240), ("8 hours", 480),
+    ]
+
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var timer: Timer?
@@ -21,11 +27,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
     private let batteryItem = NSMenuItem(title: "", action: #selector(toggleBatteryGuard), keyEquivalent: "")
+    private let timedItem = NSMenuItem(title: "Keep it awake for", action: nil, keyEquivalent: "")
     private let noteItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private var pendingUpdate: Release?
 
     /// Set when the user says at quit that the Mac must stay awake.
     private var keepAwakeOnPurpose = false
+    /// When a timed session must end. Nil means "until you say otherwise".
+    private var awakeUntil: Date?
+    private var deadlineTimer: Timer?
+    private var activeDuration = 0
     /// What the battery guard last did, shown in the menu.
     private var note: String?
     /// Stops a warning that repeats every poll.
@@ -71,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             guard let self, !self.busy else { return }
             self.readState()
+            self.checkTheDeadline()
             self.guardTheBattery()
             self.updateUI()
         }
@@ -88,7 +100,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         stateItem.isEnabled = false
         noteItem.isEnabled = false
-        for item in [stateItem, noteItem, NSMenuItem.separator(), toggleItem, NSMenuItem.separator(),
+        let durations = NSMenu()
+        for (title, minutes) in Self.durations {
+            let item = NSMenuItem(title: title, action: #selector(keepAwakeForAWhile(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = minutes
+            durations.addItem(item)
+        }
+        timedItem.submenu = durations
+
+        for item in [stateItem, noteItem, NSMenuItem.separator(), toggleItem, timedItem,
+                     NSMenuItem.separator(),
                      batteryItem, sudoItem, loginItem, updateItem, NSMenuItem.separator()] {
             menu.addItem(item)
         }
@@ -124,7 +146,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // The state line carries the character. The action line must be plain,
         // because the user acts on it.
-        stateItem.title = sleepDisabled ? "Zombie roams when closed" : "Sleeps when closed"
+        if let until = awakeUntil, sleepDisabled {
+            stateItem.title = "Zombie roams for another \(spellDuration(until.timeIntervalSinceNow))"
+        } else {
+            stateItem.title = sleepDisabled ? "Zombie roams when closed" : "Sleeps when closed"
+        }
+        timedItem.isEnabled = true
+        for item in timedItem.submenu?.items ?? [] {
+            item.state = (awakeUntil != nil && item.tag == activeDuration) ? .on : .off
+        }
         toggleItem.title = sleepDisabled ? "Let it sleep when closed" : "Keep it awake when closed"
         sudoItem.state = SudoRule.isInstalled ? .on : .off
         loginItem.state = isLoginEnabled ? .on : .off
@@ -153,12 +183,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggle() {
+        // A toggle by hand always ends a timed session. You asked for this
+        // state, so nothing may take it away behind your back.
+        cancelDeadline()
+        apply(!sleepDisabled)
+    }
+
+    /// Puts the setting to `target`. Silent when the rule is in place,
+    /// otherwise it asks for the password.
+    private func apply(_ target: Bool) {
         guard !busy else { return }
-        let target = !sleepDisabled
         busy = true
         updateUI()
 
-        // The rule is in place: apply the setting in the background, with no dialog.
         if SudoRule.isInstalled {
             DispatchQueue.global(qos: .userInitiated).async {
                 let ok = Privileged.pmsetQuietly(target)
@@ -324,12 +361,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         finish()
     }
 
+    // MARK: A session with an end
+
+    @objc private func keepAwakeForAWhile(_ sender: NSMenuItem) {
+        let minutes = sender.tag
+        activeDuration = minutes
+        awakeUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        note = nil
+
+        deadlineTimer?.invalidate()
+        deadlineTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(minutes * 60),
+                                             repeats: false) { [weak self] _ in
+            self?.deadlineReached()
+        }
+
+        if sleepDisabled {
+            updateUI()          // Already awake: only the end time is new.
+        } else {
+            apply(true)
+        }
+    }
+
+    private func cancelDeadline() {
+        deadlineTimer?.invalidate()
+        deadlineTimer = nil
+        awakeUntil = nil
+        activeDuration = 0
+    }
+
+    private func deadlineReached() {
+        cancelDeadline()
+        guard sleepDisabled else { updateUI(); return }
+        note = "The time was up at " + clockTime(Date())
+        apply(false)
+    }
+
     // MARK: The battery guard
 
     @objc private func toggleBatteryGuard() {
         batteryGuard.toggle()
         if batteryGuard { warnedAboutBattery = false }
         updateUI()
+    }
+
+    /// A backstop. A Timer can be late or be lost, and the end of a session
+    /// must not depend on that.
+    private func checkTheDeadline() {
+        guard let until = awakeUntil, Date() >= until else { return }
+        deadlineReached()
     }
 
     /// A Mac that stays awake in a closed bag on a flat battery gets hot and
@@ -366,7 +445,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let ok = Privileged.pmsetQuietly(false)
             DispatchQueue.main.async {
                 self.busy = false
-                if ok { self.note = "Sleep was given back at \(percent)% battery" }
+                if ok {
+                    self.cancelDeadline()
+                    self.note = "Sleep was given back at \(percent)% battery"
+                }
                 self.readState()
                 self.updateUI()
             }

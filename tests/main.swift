@@ -36,6 +36,28 @@ for (a, b, want) in versions {
     check("isNewer(\(a), \(b)) == \(want)", Update.isNewer(a, than: b) == want)
 }
 
+// MARK: - Saying a length of time
+
+section("spellDuration")
+let durations: [(TimeInterval, String)] = [
+    (60, "1 minute"),
+    (120, "2 minutes"),
+    (3600, "1 hour"),
+    (7200, "2 hours"),
+    (4800, "1 hour 20 minutes"),
+    (28800, "8 hours"),
+    (30, "1 minute"),          // rounds up, never "0 minutes"
+    (90, "2 minutes"),         // a mutation test found the cases above could
+    (3630, "1 hour 1 minute"), // not tell rounding up from rounding down
+    (0, "1 minute"),
+    (-60, "1 minute"),         // a deadline already past
+    (3660, "1 hour 1 minute"), // singular on both halves
+]
+for (seconds, want) in durations {
+    check("\(Int(seconds))s reads as \"\(want)\"", spellDuration(seconds) == want,
+          spellDuration(seconds))
+}
+
 // MARK: - Shell quoting
 
 section("shellQuote")

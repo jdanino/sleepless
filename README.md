@@ -36,6 +36,9 @@ That needs the Xcode command-line tools (`xcode-select --install`).
 
 - **Left click** on the menu-bar icon: toggle the setting.
 - **Right click** (or control-click): open the menu.
+- Menu **Keep it awake for** → 15 minutes, 30 minutes, 1, 2, 4 or 8 hours.
+  The Mac then sleeps again by itself when the time is up, and the menu counts
+  down: *Zombie roams for another 47 minutes*.
 - Face with **wide eyes**: sleep is off, the Mac stays awake. It stares,
   because it cannot sleep.
 - Face with **closed eyes**: sleep is on, the Mac may sleep.
@@ -104,6 +107,10 @@ or under, the app lets it sleep again and says so in the menu. It looks every
 percent. The menu says
 *Sleep was given back at 19 % battery*. Switch this off with the menu item
 **Let it sleep under 20 % battery**.
+
+**When the time is up.** A session from **Keep it awake for** ends by itself.
+A toggle by hand ends it too — you asked for that state, so nothing takes it
+away behind your back.
 
 **When you quit.** If sleep is off, the app asks first:
 
