@@ -88,6 +88,16 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/
 DMG="$HERE/build/Sleepless-$VERSION.dmg"
 echo "Version: $VERSION"
 
+# Nothing else forces the tag and the bundle version together. When they
+# differ, an old build lands on a new release and every installed copy keeps
+# believing it is up to date - silent, and hard to notice. CI passes the tag
+# in EXPECTED_VERSION. Stop here, before anything is signed or sent to Apple.
+if [ -n "${EXPECTED_VERSION:-}" ] && [ "$EXPECTED_VERSION" != "$VERSION" ]; then
+  echo "The tag says $EXPECTED_VERSION, but the app says $VERSION." >&2
+  echo "Change CFBundleShortVersionString in build.sh, then move the tag." >&2
+  exit 1
+fi
+
 # 2. Sign with the hardened runtime. Notarisation demands it.
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
 codesign --verify --strict --verbose=2 "$APP"

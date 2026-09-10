@@ -62,9 +62,10 @@ jobs:
           APPLE_API_KEY: ${{ runner.temp }}/keys/AuthKey.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          EXPECTED_VERSION: ${{ inputs.tag || github.ref_name }}
         run: |
           ./release.sh --check
-          ./release.sh
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}" ./release.sh
 
       - name: Prove it the way Gatekeeper does
         run: |
