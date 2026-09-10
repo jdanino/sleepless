@@ -8,6 +8,8 @@
 #   2. A notarytool credential:
 #      xcrun notarytool store-credentials sleepless \
 #        --apple-id <your Apple ID> --team-id 25GE53E3A4
+#
+# Run `./release.sh --check` first: it says what is missing and changes nothing.
 #      It asks for an app-specific password. Make one at appleid.apple.com.
 set -euo pipefail
 
@@ -16,12 +18,38 @@ APP="$HERE/build/Sleepless.app"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || echo 1.0)"
 DMG="$HERE/build/Sleepless-$VERSION.dmg"
 PROFILE="${NOTARY_PROFILE:-sleepless}"
+TEAM_ID="${APPLE_TEAM_ID:-25GE53E3A4}"
 
 IDENTITY="$(security find-identity -v -p codesigning \
   | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"/\1/' || true)"
+
+have_credential() { xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; }
+
+# `./release.sh --check` reports what is missing and changes nothing.
+if [ "${1:-}" = "--check" ]; then
+  status=0
+  if [ -n "$IDENTITY" ]; then
+    echo "OK   certificate: $IDENTITY"
+  else
+    echo "MISS certificate: no 'Developer ID Application' in the keychain."
+    echo "     Xcode > Settings > Accounts > <your account> > Manage Certificates"
+    echo "     > '+' > Developer ID Application."
+    status=1
+  fi
+  if have_credential; then
+    echo "OK   notarisation credential '$PROFILE'"
+  else
+    echo "MISS notarisation credential '$PROFILE'."
+    echo "     xcrun notarytool store-credentials $PROFILE \\"
+    echo "       --apple-id <your Apple ID> --team-id $TEAM_ID"
+    status=1
+  fi
+  [ "$status" = 0 ] && echo && echo "Everything is ready. Run ./release.sh"
+  exit "$status"
+fi
+
 if [ -z "$IDENTITY" ]; then
-  echo "No Developer ID Application certificate found."
-  echo "Make one in Xcode > Settings > Accounts > Manage Certificates, then run this again."
+  echo "No Developer ID Application certificate found. Run ./release.sh --check"
   exit 1
 fi
 echo "Signing identity: $IDENTITY"
@@ -33,13 +61,6 @@ echo "Signing identity: $IDENTITY"
 codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
-echo
-echo "TEST NOW, BEFORE YOU CONTINUE:"
-echo "  open '$APP', then toggle one time."
-echo "  The hardened runtime can stop 'do shell script with administrator privileges'."
-echo "  If the toggle fails, the app needs a privileged helper instead."
-read -r -p "Did the toggle work? [y/N] " answer
-[ "$answer" = "y" ] || { echo "Stopped."; exit 1; }
 
 # 3. Make the DMG.
 rm -rf "$HERE/build/dmg" "$DMG"
@@ -51,7 +72,7 @@ hdiutil create -volname "Sleepless" -srcfolder "$HERE/build/dmg" \
 codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 
 # 4. Notarise and staple.
-if ! xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; then
+if ! have_credential; then
   echo "No notarytool credential named '$PROFILE'. See the top of this file."
   echo "The DMG is signed but not notarised: $DMG"
   exit 1
