@@ -3,6 +3,27 @@
 A macOS menu-bar app. It toggles `sudo pmset -a disablesleep 0/1`.
 The Mac then stays awake, also when the lid is closed.
 
+## Install
+
+**Build it yourself.** This is the way with no warning, because your own Mac
+signs the app.
+
+```bash
+git clone https://github.com/jdanino/sleepless.git && cd sleepless && ./build.sh && open ~/Applications/Sleepless.app
+```
+
+It needs the Xcode command-line tools (`xcode-select --install`).
+
+**Or take the build from the releases.** The app there has an ad-hoc signature
+only, so Gatekeeper stops it after a download in a browser. A download in the
+terminal does not get the quarantine flag, so this works:
+
+```bash
+gh release download v1.0 --repo jdanino/sleepless --dir /tmp && unzip -o /tmp/Sleepless.zip -d /Applications && open /Applications/Sleepless.app
+```
+
+The app has no Dock icon. Look for the face in the menu bar.
+
 ## Use
 
 - **Left click** on the menu-bar icon: toggle the setting.
