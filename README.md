@@ -3,6 +3,8 @@
 A macOS menu-bar app. It toggles `sudo pmset -a disablesleep 0/1`.
 The Mac then stays awake, also when the lid is closed.
 
+![The two states: a face with wide eyes when sleep is off, and a face with closed eyes when sleep is on](docs/states.png)
+
 ## Install
 
 Download the **`.dmg`** from the
@@ -52,6 +54,14 @@ repository, and it sends nothing about you.
   open the release page.
 - The menu item **Check for Updates…** does the same look immediately, and
   says the result in a window.
+
+## The first password
+
+The first click on the icon shows a window that says why macOS is about to ask
+for a password: only root may change the sleep setting, and that one password
+installs a rule that permits exactly two `pmset` commands and nothing else. A
+checkbox there lets you refuse the rule and give your password at each toggle
+instead.
 
 The app does **not** replace itself. You download the new DMG and drag it over
 the old app. That is a deliberate choice: an app that can replace its own
@@ -106,8 +116,9 @@ The app is ad-hoc signed. It is not notarised, because it is a local build.
   template image and the Finder icon from the same code. No image files are
   necessary.
 - `tools/main.swift` — a small tool. `sheet` makes a preview PNG of both
-  states, `iconset` makes the PNG set for `iconutil`. In the preview sheet the
-  left image of each pair is the true 18 pt icon, made big with hard pixels.
+  states, `docs` makes the picture at the top of this file, and `iconset`
+  makes the PNG set for `iconutil`. In the preview sheet the left image of
+  each pair is the true 18 pt icon, made big with hard pixels.
 - `build.sh` — makes `build/Sleepless.app` and copies it to the target folder.
 
 To look at the icon after a change:

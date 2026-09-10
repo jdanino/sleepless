@@ -28,6 +28,55 @@ func drawMagnified(awake: Bool, color: NSColor, at point: NSPoint, box: CGFloat)
 let mode = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "sheet"
 let out = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "icons.png"
 
+if mode == "docs" {
+    // A picture for the README: the two states, drawn with the same code the
+    // app uses. It is a rendering, not a photograph of a screen.
+    let W: CGFloat = 1200, H: CGFloat = 420
+    let sheet = NSImage(size: NSSize(width: W, height: H))
+    sheet.lockFocus()
+    NSColor.white.setFill(); NSRect(x: 0, y: 0, width: W, height: H).fill()
+
+    let panels: [(bg: NSColor, fg: NSColor, awake: Bool, title: String, line: String)] = [
+        (NSColor(white: 0.11, alpha: 1), .white, true,
+         "Sleep is off", "Your Mac will stay awake when closed"),
+        (NSColor(white: 0.96, alpha: 1), NSColor(white: 0.08, alpha: 1), false,
+         "Sleep is on", "Your Mac will go to sleep when closed"),
+    ]
+
+    for (i, p) in panels.enumerated() {
+        let x = 30 + CGFloat(i) * (W / 2 - 15)
+        let rect = NSRect(x: x, y: 30, width: W / 2 - 45, height: H - 60)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 22, yRadius: 22)
+        p.bg.setFill(); path.fill()
+
+        // A strip that suggests the menu bar, with the icon at its true size.
+        let barY = rect.maxY - 86
+        statusImage(awake: p.awake, size: 22, color: p.fg)
+            .draw(at: NSPoint(x: rect.minX + 44, y: barY), from: .zero,
+                  operation: .sourceOver, fraction: 1)
+
+        // The same icon, large, so the two states are easy to compare.
+        statusImage(awake: p.awake, size: 150, color: p.fg)
+            .draw(at: NSPoint(x: rect.midX - 75, y: rect.minY + 110), from: .zero,
+                  operation: .sourceOver, fraction: 1)
+
+        (p.title as NSString).draw(
+            at: NSPoint(x: rect.minX + 82, y: barY - 1),
+            withAttributes: [.font: NSFont.systemFont(ofSize: 19, weight: .semibold),
+                             .foregroundColor: p.fg])
+        let line = NSMutableParagraphStyle(); line.alignment = .center
+        (p.line as NSString).draw(
+            in: NSRect(x: rect.minX + 20, y: rect.minY + 52, width: rect.width - 40, height: 30),
+            withAttributes: [.font: NSFont.systemFont(ofSize: 20),
+                             .foregroundColor: p.fg.withAlphaComponent(0.75),
+                             .paragraphStyle: line])
+    }
+    sheet.unlockFocus()
+    writePNG(sheet, to: out)
+    print("written \(out)")
+    exit(0)
+}
+
 if mode == "iconset" {
     try? FileManager.default.createDirectory(atPath: out, withIntermediateDirectories: true)
     for (size, scale) in [(16,1),(16,2),(32,1),(32,2),(128,1),(128,2),(256,1),(256,2),(512,1),(512,2)] {

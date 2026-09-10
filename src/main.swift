@@ -100,6 +100,7 @@ enum SudoRule {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let askEveryTimeKey = "AskForPasswordEveryTime"
+    private let explainedKey = "HasExplainedTheFirstPassword"
 
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
@@ -117,6 +118,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var askEveryTime: Bool {
         get { UserDefaults.standard.bool(forKey: askEveryTimeKey) }
         set { UserDefaults.standard.set(newValue, forKey: askEveryTimeKey) }
+    }
+
+    private var hasExplained: Bool {
+        get { UserDefaults.standard.bool(forKey: explainedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: explainedKey) }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -232,6 +238,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Shows one dialog. It installs the password-free rule (if permitted) and
     /// applies the setting in the same privileged step.
     private func askForPassword(_ target: Bool) {
+        // The very first time, say why macOS is about to ask for a password.
+        // Without this a stranger clicks a face and gets a password dialog
+        // with no reason given, which is where most people stop.
+        if !askEveryTime, !SudoRule.isInstalled, !hasExplained {
+            guard explainTheFirstPassword() else { finish(); return }
+            hasExplained = true
+        }
+
         var staged: String?
         var command = Privileged.pmsetCommand(target)
         if !askEveryTime, let tmp = SudoRule.stage() {
@@ -250,6 +264,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert("Cannot change the sleep setting", error.message)
         }
         finish()
+    }
+
+    /// Returns false when the user wants to stop.
+    private func explainTheFirstPassword() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Sleepless needs your password one time"
+        alert.informativeText = """
+            Only the root user may change the sleep setting of a Mac, so macOS \
+            asks for your password now.
+
+            With that one password Sleepless installs a small rule that permits \
+            exactly two commands and nothing else:
+
+                pmset -a disablesleep 0
+                pmset -a disablesleep 1
+
+            Every toggle after this one is immediate and silent. You can remove \
+            the rule again from the menu at any moment.
+            """
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Do not install the rule. Ask for my password at each toggle."
+        NSApp.activate(ignoringOtherApps: true)
+
+        let answer = alert.runModal()
+        if alert.suppressionButton?.state == .on { askEveryTime = true }
+        return answer == .alertFirstButtonReturn
     }
 
     @objc private func toggleSudoRule() {
