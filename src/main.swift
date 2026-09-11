@@ -7,7 +7,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let askEveryTimeKey = "AskForPasswordEveryTime"
     private let explainedKey = "HasExplainedTheFirstPassword"
     private let batteryGuardKey = "LetItSleepOnLowBattery"
-    private let lowBattery = 20
 
     /// The choices in the "Keep it awake for" submenu, in minutes.
     static let durations: [(String, Int)] = [
@@ -82,8 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             guard let self, !self.busy else { return }
             self.readState()
-            self.checkTheDeadline()
-            self.guardTheBattery()
+            self.reconsider()
             self.updateUI()
         }
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -133,12 +131,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateUI() {
-        // A Deadline only means something inside Stay Awake. If the state
-        // changed some other way - a refused password, or pmset in a terminal
-        // - the Deadline goes with it. Not while a change is in flight,
-        // because then the state has not settled yet.
-        if !busy, !stayAwake, deadline != nil { cancelDeadline() }
-
         let description = stayAwake
             ? "Your Mac will stay awake when closed"
             : "Your Mac will go to sleep when closed"
@@ -166,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         loginItem.state = isLoginEnabled ? .on : .off
         updateItem.title = pendingUpdate.map { "Version \($0.version) is available…" }
             ?? "Check for Updates…"
-        batteryItem.title = "Let it sleep under \(lowBattery)% battery"
+        batteryItem.title = "Let it sleep under \(lowBatteryPercent)% battery"
         batteryItem.state = batteryGuard ? .on : .off
         noteItem.title = note ?? ""
         noteItem.isHidden = note == nil
@@ -182,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showMenu() {
         readState()
+        reconsider()
         updateUI()
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
@@ -366,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func wake() {
         readState()
-        guardTheBattery()
+        reconsider()
         finish()
     }
 
@@ -381,7 +374,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         deadlineTimer?.invalidate()
         deadlineTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval(minutes * 60),
                                              repeats: false) { [weak self] _ in
-            self?.deadlineReached()
+            self?.reconsider()
         }
 
         if stayAwake {
@@ -398,73 +391,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activeDuration = 0
     }
 
-    private func deadlineReached() {
-        // apply() does nothing while another change is in flight. Leave the
-        // Deadline armed and let the 5-minute backstop try again, or it would
-        // be cancelled without ever taking effect.
-        guard !busy else { return }
-        cancelDeadline()
-        guard stayAwake else { updateUI(); return }
-        note = "The time was up at " + clockTime(Date())
-        apply(false)
-    }
 
     // MARK: The battery guard
 
     @objc private func toggleBatteryGuard() {
         batteryGuard.toggle()
-        if batteryGuard { warnedAboutBattery = false }
+        warnedAboutBattery = false
+        reconsider()
         updateUI()
     }
 
-    /// A backstop. A Timer can be late or be lost, and the end of a session
-    /// must not depend on that.
-    private func checkTheDeadline() {
-        guard let until = deadline, Date() >= until else { return }
-        deadlineReached()
+    /// Look at the whole situation and carry out whatever it demands.
+    /// Called from the 5-minute poll, after a wake, when the menu opens, and
+    /// when a Deadline's Timer fires.
+    private func reconsider() {
+        // Nothing is decided while a change is in flight: the state has not
+        // settled, so a Deadline must stay armed rather than be cancelled
+        // without ever taking effect.
+        guard !busy else { return }
+
+        let situation = Situation(stayAwake: stayAwake,
+                                  deadline: deadline,
+                                  battery: Power.read(),
+                                  guardIsOn: batteryGuard,
+                                  ruleIsInstalled: SudoRule.isInstalled)
+
+        let decision = decide(situation, now: Date())
+        if case .warnAboutBattery = decision {} else { warnedAboutBattery = false }
+
+        switch decision {
+        case .doNothing:
+            break
+
+        case .dropDeadline:
+            cancelDeadline()
+
+        case .returnToNormal(let reason):
+            cancelDeadline()
+            note = phrase(reason)
+            apply(false)
+
+        case .warnAboutBattery(let percent):
+            guard !warnedAboutBattery else { break }
+            warnedAboutBattery = true
+            alert("The battery is at \(percent)%",
+                  "Your Mac is set to stay awake, and Sleepless cannot change that "
+                  + "without your password. Toggle it by hand, or switch on "
+                  + "\"Toggle without a password\" in the menu.")
+        }
     }
 
-    /// A Mac that stays awake in a closed bag on a flat battery gets hot and
-    /// empty. When the charge falls under the limit, give sleep back.
-    private func guardTheBattery() {
-        guard batteryGuard, stayAwake, !busy else { return }
-        guard let power = Power.read(), power.onBattery else {
-            warnedAboutBattery = false   // On the charger again.
-            return
-        }
-        guard power.percent <= lowBattery else {
-            warnedAboutBattery = false
-            return
-        }
-
-        // Act without a word only when the rule permits it. A password dialog
-        // that appears by itself, with a closed lid, would be worse than the
-        // problem.
-        guard SudoRule.isInstalled else {
-            if !warnedAboutBattery {
-                warnedAboutBattery = true
-                alert("The battery is at \(power.percent)%",
-                      "Your Mac is set to stay awake, and Sleepless cannot change that "
-                      + "without your password. Toggle it by hand, or switch on "
-                      + "\"Toggle without a password\" in the menu.")
-            }
-            return
-        }
-
-        busy = true
-        updateUI()
-        let percent = power.percent
-        DispatchQueue.global(qos: .userInitiated).async {
-            let ok = Privileged.pmsetQuietly(false)
-            DispatchQueue.main.async {
-                self.busy = false
-                if ok {
-                    self.cancelDeadline()
-                    self.note = "Sleep was given back at \(percent)% battery"
-                }
-                self.readState()
-                self.updateUI()
-            }
+    /// A Guard must say what it did and why. A Deadline was asked for, but the
+    /// line is still useful when you look later.
+    private func phrase(_ reason: Reason) -> String {
+        switch reason {
+        case .theDeadlinePassed:
+            return "The time was up at " + clockTime(Date())
+        case .theBatteryIsLow(let percent):
+            return "Sleep was given back at \(percent)% battery"
         }
     }
 

@@ -36,18 +36,23 @@ Two things will land on this pipeline when it happens:
 ```
 
 It links the real source files, minus `main.swift`, which holds the top-level
-code of the app. So it tests the code the app runs, not a copy. 39 checks:
-the version comparison, how a length of time is spelled, shell quoting, the
-exact `pmset` commands, the sudoers rule (including a real `visudo -cqf` on
-it), the battery reading, the two icon states, and one call to GitHub that is
-skipped, not failed, when there is no network.
+code of the app. So it tests the code the app runs, not a copy. 53 checks:
+**every rule in `decide`** — when a Deadline ends Stay Awake, when the Battery
+Guard acts, when it warns instead, and the boundaries of each — plus the
+version comparison, how a length of time is spelled, shell quoting, the exact
+`pmset` commands, the sudoers rule (including a real `visudo -cqf` on it), the
+battery reading, the two icon states, and one call to GitHub that is skipped,
+not failed, when there is no network.
 
 Both workflows run it. Nothing is signed or notarised before it passes.
 
 **Break the code on purpose now and then.** A test that cannot fail is worth
 nothing. Inverting the comparison in `Update.isNewer` must turn 7 checks red,
-widening the sudoers rule to `NOPASSWD: ALL` must turn 1 red, and changing
-`.rounded(.up)` to `.rounded(.down)` in `spellDuration` must turn 2 red.
+widening the sudoers rule to `NOPASSWD: ALL` must turn 1 red, changing
+`.rounded(.up)` to `.rounded(.down)` in `spellDuration` must turn 2 red, and
+in `decide` each of these must turn exactly 1 red: `<=` to `<` on the battery
+limit, dropping the `dropDeadline` rule, and putting the battery test before
+the Deadline test.
 
 The exercise has already paid twice. It found that the sudoers assertion
 looked for one exact spelling, so `ALL=(root) NOPASSWD: ALL` walked past it.
@@ -75,6 +80,9 @@ The words this project uses are in [CONTEXT.md](CONTEXT.md).
 - `src/Icon.swift` — the face drawing, in two states. It makes the menu-bar
   template image and the Finder icon from the same code. No image files are
   necessary.
+- `src/Decide.swift` — every rule about when the app changes the state by
+  itself, as one pure function. It knows nothing about menus or `pmset`, so
+  the tests can cover all of it.
 - `tests/main.swift` — the tests. `test.sh` builds and runs them.
 - `tools/main.swift` — a small tool. `sheet` makes a preview PNG of both
   states, `docs` makes the picture at the top of this file, and `iconset`

@@ -1,7 +1,7 @@
 import Foundation
 import IOKit.ps
 
-struct PowerState {
+struct PowerState: Equatable {
     let percent: Int
     let onBattery: Bool
 }

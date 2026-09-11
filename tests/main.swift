@@ -104,6 +104,70 @@ if let staged = SudoRule.stage() {
     check("the rule can be staged", false, "stage() gave nothing")
 }
 
+// MARK: - The decisions the app exists to make
+
+section("decide")
+
+let now = Date()
+let soon = now.addingTimeInterval(600)
+let past = now.addingTimeInterval(-1)
+
+func situation(stayAwake: Bool, deadline: Date? = nil, percent: Int? = nil,
+               onBattery: Bool = true, guardIsOn: Bool = true,
+               rule: Bool = true) -> Situation {
+    Situation(stayAwake: stayAwake,
+              deadline: deadline,
+              battery: percent.map { PowerState(percent: $0, onBattery: onBattery) },
+              guardIsOn: guardIsOn,
+              ruleIsInstalled: rule)
+}
+
+let cases: [(String, Situation, Decision)] = [
+    ("Normal and nothing pending",
+     situation(stayAwake: false), .doNothing),
+
+    // The fault: refuse the password dialog and a Deadline was left armed for
+    // a session that never began.
+    ("a Deadline cannot stand outside Stay Awake",
+     situation(stayAwake: false, deadline: soon), .dropDeadline),
+
+    ("Stay Awake with time left",
+     situation(stayAwake: true, deadline: soon), .doNothing),
+    ("a Deadline exactly now",
+     situation(stayAwake: true, deadline: now), .returnToNormal(because: .theDeadlinePassed)),
+    ("a Deadline in the past",
+     situation(stayAwake: true, deadline: past), .returnToNormal(because: .theDeadlinePassed)),
+
+    ("the battery at 19% acts",
+     situation(stayAwake: true, percent: 19),
+     .returnToNormal(because: .theBatteryIsLow(percent: 19))),
+    ("the limit itself, 20%, acts",
+     situation(stayAwake: true, percent: 20),
+     .returnToNormal(because: .theBatteryIsLow(percent: 20))),
+    ("21% does not act",
+     situation(stayAwake: true, percent: 21), .doNothing),
+
+    ("the Guard switched off does nothing",
+     situation(stayAwake: true, percent: 5, guardIsOn: false), .doNothing),
+    ("without the Rule it warns instead of acting",
+     situation(stayAwake: true, percent: 5, rule: false), .warnAboutBattery(percent: 5)),
+    ("on the charger at 5% does nothing",
+     situation(stayAwake: true, percent: 5, onBattery: false), .doNothing),
+    ("a Mac with no battery does nothing",
+     situation(stayAwake: true, percent: nil), .doNothing),
+
+    ("a flat battery in Normal is not this app's business",
+     situation(stayAwake: false, percent: 3), .doNothing),
+    ("a passed Deadline wins over a low battery, so the answer is one thing",
+     situation(stayAwake: true, deadline: past, percent: 5),
+     .returnToNormal(because: .theDeadlinePassed)),
+]
+
+for (name, given, want) in cases {
+    let got = decide(given, now: now)
+    check(name, got == want, "got \(got), want \(want)")
+}
+
 // MARK: - The battery
 
 section("Power")
