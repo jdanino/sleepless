@@ -56,13 +56,16 @@ hid the rounding — 90 seconds and 3630 seconds were added to tell them apart.
 
 ## Decisions
 
-Two are written down in [docs/adr/](docs/adr/):
+Three are written down in [docs/adr/](docs/adr/):
 
 1. **[A sudoers Rule instead of a privileged helper](docs/adr/0001-a-sudoers-rule-instead-of-a-privileged-helper.md)** —
    why the app does not use the way Apple documents, and why the Rule must
    stay narrow.
 2. **[Signing happens on one Mac, not in CI](docs/adr/0002-signing-happens-on-one-mac-not-in-ci.md)** —
    why no signing key lives in GitHub, and what would reopen that.
+3. **[The icon is drawn in code](docs/adr/0003-the-icon-is-drawn-in-code.md)** —
+   why there is no image file, that nobody chose this at the time, and that
+   the Finder icon is a known placeholder.
 
 The words this project uses are in [CONTEXT.md](CONTEXT.md).
 
