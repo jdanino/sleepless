@@ -11,8 +11,8 @@
 #
 # Run `./release.sh --check` first: it says what is missing and changes nothing.
 #
-# In CI there is no keychain profile. Set APPLE_API_KEY (a path to the .p8),
-# APPLE_API_KEY_ID and APPLE_API_ISSUER instead, and the script uses those.
+# This runs on your own Mac, never in CI. The signing key stays here on
+# purpose - see docs/adr/0002.
 #      It asks for an app-specific password. Make one at appleid.apple.com.
 set -euo pipefail
 
@@ -24,26 +24,9 @@ TEAM_ID="${APPLE_TEAM_ID:-25GE53E3A4}"
 IDENTITY="$(security find-identity -v -p codesigning \
   | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"/\1/' || true)"
 
-# Two ways to prove who we are. CI gives a key file in the environment; on your
-# own Mac the credential sits in the keychain under the profile name.
-using_api_key() { [ -n "${APPLE_API_KEY:-}" ]; }
+have_credential() { xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; }
 
-have_credential() {
-  if using_api_key; then
-    [ -f "$APPLE_API_KEY" ] && [ -n "${APPLE_API_KEY_ID:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ]
-  else
-    xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1
-  fi
-}
-
-notarise() {
-  if using_api_key; then
-    xcrun notarytool submit "$1" \
-      --key "$APPLE_API_KEY" --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
-  else
-    xcrun notarytool submit "$1" --keychain-profile "$PROFILE" --wait
-  fi
-}
+notarise() { xcrun notarytool submit "$1" --keychain-profile "$PROFILE" --wait; }
 
 # `./release.sh --check` reports what is missing and changes nothing.
 if [ "${1:-}" = "--check" ]; then
@@ -57,11 +40,7 @@ if [ "${1:-}" = "--check" ]; then
     status=1
   fi
   if have_credential; then
-    if using_api_key; then
-      echo "OK   notarisation key: $APPLE_API_KEY ($APPLE_API_KEY_ID)"
-    else
-      echo "OK   notarisation credential '$PROFILE'"
-    fi
+    echo "OK   notarisation credential '$PROFILE'"
   else
     echo "MISS notarisation credential '$PROFILE'."
     echo "     xcrun notarytool store-credentials $PROFILE \\"
@@ -88,12 +67,15 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/
 DMG="$HERE/build/Sleepless-$VERSION.dmg"
 echo "Version: $VERSION"
 
-# Nothing else forces the tag and the bundle version together. When they
-# differ, an old build lands on a new release and every installed copy keeps
-# believing it is up to date - silent, and hard to notice. CI passes the tag
-# in EXPECTED_VERSION. Stop here, before anything is signed or sent to Apple.
-if [ -n "${EXPECTED_VERSION:-}" ] && [ "$EXPECTED_VERSION" != "$VERSION" ]; then
-  echo "The tag says $EXPECTED_VERSION, but the app says $VERSION." >&2
+# Nothing else forces the tag and the bundle version together. Forget the
+# version bump and this script would build 1.6, publish it to the old v1.6
+# release, and leave the fresh v1.7 tag empty - quietly, and hard to notice.
+# Stop here, before anything is signed or sent to Apple.
+# A commit can carry several tags, so ask whether any of them matches, rather
+# than looking at the first one and hoping.
+HEAD_TAGS="$(git tag --points-at HEAD | grep '^v' || true)"
+if [ -n "$HEAD_TAGS" ] && ! printf '%s\n' "$HEAD_TAGS" | grep -qx "v$VERSION"; then
+  echo "This commit is tagged $(printf '%s ' $HEAD_TAGS), but the app says $VERSION." >&2
   echo "Change CFBundleShortVersionString in build.sh, then move the tag." >&2
   exit 1
 fi
@@ -135,6 +117,24 @@ codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 notarise "$DMG"
 xcrun stapler staple "$DMG"
 xcrun stapler validate "$DMG"
+
+# 6. Put it on the GitHub release. The tag must already exist.
+TAG="v$VERSION"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  if gh release view "$TAG" >/dev/null 2>&1; then
+    gh release upload "$TAG" "$DMG" --clobber
+  else
+    gh release create "$TAG" "$DMG" --title "Sleepless $VERSION" --notes \
+"**$(basename "$DMG")** is signed with a Developer ID and notarised by Apple.
+Open it and drag the app to Applications. A plain double-click works.
+
+The app has no Dock icon. Look for the face in the menu bar."
+  fi
+  echo "On the release: $TAG"
+else
+  echo "No tag $TAG yet, so nothing was published."
+  echo "  git tag $TAG && git push origin $TAG && ./release.sh"
+fi
 
 echo
 echo "Ready: $DMG"

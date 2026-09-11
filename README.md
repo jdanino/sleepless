@@ -128,5 +128,9 @@ message then, and the setting stays as it is.
 
 ## For developers
 
-Building the app, the files, and how a release is signed and notarised:
-[RELEASING.md](RELEASING.md).
+- [CONTEXT.md](CONTEXT.md) — the words this project uses, and the ones it
+  refuses. Read it before you name anything.
+- [docs/adr/](docs/adr/) — decisions that a reader would otherwise question,
+  with the reasoning that produced them.
+- [RELEASING.md](RELEASING.md) — building, the files, and how a release is
+  signed and notarised.

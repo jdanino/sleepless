@@ -1,5 +1,14 @@
 import Cocoa
 
+// DELIBERATELY TEMPORARY.
+//
+// This tells you that a newer version exists; it never installs one. Sparkle
+// is expected to replace it, and when that lands this whole file goes, with
+// the menu item and the version tests. Do not build on it.
+//
+// See docs/adr/0001 for why the app is free to take a self-replacing updater
+// at all: the Rule is narrow enough that a hostile update gains nothing.
+
 struct Release {
     let version: String
     let pageURL: URL
