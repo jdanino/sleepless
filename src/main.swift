@@ -133,6 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateUI() {
+        // A Deadline only means something inside Stay Awake. If the state
+        // changed some other way - a refused password, or pmset in a terminal
+        // - the Deadline goes with it. Not while a change is in flight,
+        // because then the state has not settled yet.
+        if !busy, !stayAwake, deadline != nil { cancelDeadline() }
+
         let description = stayAwake
             ? "Your Mac will stay awake when closed"
             : "Your Mac will go to sleep when closed"
@@ -186,6 +192,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A toggle by hand always ends a timed session. You asked for this
         // state, so nothing may take it away behind your back.
         cancelDeadline()
+        // The note explains why the app last changed the state by itself.
+        // Once you change it, that explanation is no longer true.
+        note = nil
         apply(!stayAwake)
     }
 
@@ -390,6 +399,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func deadlineReached() {
+        // apply() does nothing while another change is in flight. Leave the
+        // Deadline armed and let the 5-minute backstop try again, or it would
+        // be cancelled without ever taking effect.
+        guard !busy else { return }
         cancelDeadline()
         guard stayAwake else { updateUI(); return }
         note = "The time was up at " + clockTime(Date())
