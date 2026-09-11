@@ -11,8 +11,8 @@ func writePNG(_ image: NSImage, to path: String) {
 
 /// Draws the true 18 pt image at 2x, then makes it big with hard pixels.
 /// Thus you see exactly what the menu bar shows.
-func drawMagnified(awake: Bool, color: NSColor, at point: NSPoint, box: CGFloat) {
-    let small = statusImage(awake: awake, size: 18, color: color)
+func drawMagnified(stayAwake: Bool, color: NSColor, at point: NSPoint, box: CGFloat) {
+    let small = statusImage(stayAwake: stayAwake, size: 18, color: color)
     let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 36, pixelsHigh: 36,
         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -36,11 +36,11 @@ if mode == "docs" {
     sheet.lockFocus()
     NSColor.white.setFill(); NSRect(x: 0, y: 0, width: W, height: H).fill()
 
-    let panels: [(bg: NSColor, fg: NSColor, awake: Bool, title: String, line: String)] = [
+    let panels: [(bg: NSColor, fg: NSColor, stayAwake: Bool, title: String, line: String)] = [
         (NSColor(white: 0.11, alpha: 1), .white, true,
-         "Sleep is off", "Your Mac will stay awake when closed"),
+         "Stay Awake", "Your Mac will stay awake when closed"),
         (NSColor(white: 0.96, alpha: 1), NSColor(white: 0.08, alpha: 1), false,
-         "Sleep is on", "Your Mac will go to sleep when closed"),
+         "Normal", "Your Mac will go to sleep when closed"),
     ]
 
     for (i, p) in panels.enumerated() {
@@ -51,12 +51,12 @@ if mode == "docs" {
 
         // A strip that suggests the menu bar, with the icon at its true size.
         let barY = rect.maxY - 86
-        statusImage(awake: p.awake, size: 22, color: p.fg)
+        statusImage(stayAwake: p.stayAwake, size: 22, color: p.fg)
             .draw(at: NSPoint(x: rect.minX + 44, y: barY), from: .zero,
                   operation: .sourceOver, fraction: 1)
 
         // The same icon, large, so the two states are easy to compare.
-        statusImage(awake: p.awake, size: 150, color: p.fg)
+        statusImage(stayAwake: p.stayAwake, size: 150, color: p.fg)
             .draw(at: NSPoint(x: rect.midX - 75, y: rect.minY + 110), from: .zero,
                   operation: .sourceOver, fraction: 1)
 
@@ -84,7 +84,7 @@ if mode == "iconset" {
         writePNG(appIcon(size: CGFloat(size * scale)), to: out + "/" + name)
     }
 } else {
-    let states: [(String, Bool)] = [("awake — the Mac stays awake", true), ("asleep — the Mac may sleep", false)]
+    let states: [(String, Bool)] = [("stayAwake — the Mac stays stayAwake", true), ("asleep — the Mac may sleep", false)]
     let cell: CGFloat = 200
     let w = cell * 2, h: CGFloat = 300
     let sheet = NSImage(size: NSSize(width: w, height: h))
@@ -93,11 +93,11 @@ if mode == "iconset" {
     NSColor(white: 0.13, alpha: 1).setFill(); NSRect(x: 0, y: 150, width: w, height: 150).fill()
     for (i, state) in states.enumerated() {
         let x = CGFloat(i) * cell + 40
-        drawMagnified(awake: state.1, color: .white, at: NSPoint(x: x, y: 232), box: 56)
-        statusImage(awake: state.1, size: 56, color: .white)
+        drawMagnified(stayAwake: state.1, color: .white, at: NSPoint(x: x, y: 232), box: 56)
+        statusImage(stayAwake: state.1, size: 56, color: .white)
             .draw(at: NSPoint(x: x, y: 166), from: .zero, operation: .sourceOver, fraction: 1)
-        drawMagnified(awake: state.1, color: .black, at: NSPoint(x: x, y: 82), box: 56)
-        statusImage(awake: state.1, size: 56, color: .black)
+        drawMagnified(stayAwake: state.1, color: .black, at: NSPoint(x: x, y: 82), box: 56)
+        statusImage(stayAwake: state.1, size: 56, color: .black)
             .draw(at: NSPoint(x: x, y: 20), from: .zero, operation: .sourceOver, fraction: 1)
         (state.0 as NSString).draw(at: NSPoint(x: CGFloat(i) * cell + 10, y: 2),
             withAttributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.black])

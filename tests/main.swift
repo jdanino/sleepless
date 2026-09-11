@@ -118,13 +118,13 @@ if let power = Power.read() {
 // MARK: - The icon
 
 section("Icon")
-let awake = statusImage(awake: true, size: 18)
-let asleep = statusImage(awake: false, size: 18)
-check("the awake icon draws", (awake.tiffRepresentation?.count ?? 0) > 0)
-check("the asleep icon draws", (asleep.tiffRepresentation?.count ?? 0) > 0)
+let wide = statusImage(stayAwake: true, size: 18)
+let closed = statusImage(stayAwake: false, size: 18)
+check("the Stay Awake icon draws", (wide.tiffRepresentation?.count ?? 0) > 0)
+check("the Normal icon draws", (closed.tiffRepresentation?.count ?? 0) > 0)
 check("the two states are not the same picture",
-      awake.tiffRepresentation != asleep.tiffRepresentation)
-check("it is a template, so the menu bar colours it", awake.isTemplate)
+      wide.tiffRepresentation != closed.tiffRepresentation)
+check("it is a template, so the menu bar colours it", wide.isTemplate)
 
 // MARK: - GitHub, over the network
 

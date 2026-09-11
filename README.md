@@ -3,7 +3,7 @@
 A macOS menu-bar app. It toggles `sudo pmset -a disablesleep 0/1`.
 The Mac then stays awake, also when the lid is closed.
 
-![The two states: a face with wide eyes when sleep is off, and a face with closed eyes when sleep is on](docs/states.png)
+![The two states: a face with wide eyes for Stay Awake, and a face with closed eyes for Normal](docs/states.png)
 
 ## Install
 
@@ -38,10 +38,10 @@ That needs the Xcode command-line tools (`xcode-select --install`).
 - **Right click** (or control-click): open the menu.
 - Menu **Keep it awake for** → 15 minutes, 30 minutes, 1, 2, 4 or 8 hours.
   The Mac then sleeps again by itself when the time is up, and the menu counts
-  down: *Zombie roams for another 47 minutes*.
-- Face with **wide eyes**: sleep is off, the Mac stays awake. It stares,
-  because it cannot sleep.
-- Face with **closed eyes**: sleep is on, the Mac may sleep.
+  down: *Stays awake for another 47 minutes*.
+- Face with **wide eyes**: **Stay Awake** — the Mac may not sleep. It stares,
+  because it cannot.
+- Face with **closed eyes**: **Normal** — the Mac sleeps as macOS decides.
 
 The app reads the true state from `pmset -g` when you toggle it, when the menu
 opens, after the Mac wakes, and every 5 minutes as a backstop. Thus the icon
@@ -97,24 +97,25 @@ asks for the password again.
 
 ## It gives sleep back by itself
 
-`disablesleep 1` stays active after a restart, and a Mac that stays awake in a
-closed bag gets hot and empty. Sleepless therefore hands sleep back in two
-cases.
+Stay Awake survives a restart, and a Mac that cannot sleep in a closed bag
+gets hot and empty. Sleepless therefore returns the Mac to Normal by itself in
+three cases.
 
-**On a low battery.** While the Mac is on battery and the charge falls to 20 %
-or under, the app lets it sleep again and says so in the menu. It looks every
+**The Battery Guard.** While the Mac is on battery and the charge falls to
+20 % or under, the app returns it to Normal and says so in the menu. It looks every
 5 minutes, which is often enough: a battery needs many minutes to fall one
 percent. The menu says
 *Sleep was given back at 19 % battery*. Switch this off with the menu item
 **Let it sleep under 20 % battery**.
 
-**When the time is up.** A session from **Keep it awake for** ends by itself.
+**A Deadline.** A length chosen in **Keep it awake for** ends by itself.
 A toggle by hand ends it too — you asked for that state, so nothing takes it
 away behind your back.
 
-**When you quit.** If sleep is off, the app asks first:
+**The Quit Guard.** If the Mac is in Stay Awake when you quit, the app asks
+first:
 
-> **Sleep is off. Let the Mac sleep again?**
+> **Your Mac will stay awake. Let it sleep again?**
 > ( Let it sleep and quit ) ( Keep it awake and quit ) ( Cancel )
 
 A log out or a shut down does the same without a question.

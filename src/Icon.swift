@@ -18,7 +18,7 @@ private func closedEye(at point: CGPoint, in ctx: CGContext) {
 }
 
 /// Draws the face in a 100 x 100 space.
-private func drawFace(awake: Bool, in ctx: CGContext, color: NSColor) {
+private func drawFace(stayAwake: Bool, in ctx: CGContext, color: NSColor) {
     ctx.saveGState()
     ctx.beginTransparencyLayer(auxiliaryInfo: nil)
     ctx.setFillColor(color.cgColor)
@@ -29,7 +29,7 @@ private func drawFace(awake: Bool, in ctx: CGContext, color: NSColor) {
 
     // Cut the eyes and the mouth out.
     ctx.setBlendMode(.destinationOut)
-    if awake {
+    if stayAwake {
         for eye in [eyeLeft, eyeRight] {
             ctx.fillEllipse(in: CGRect(x: eye.x - 16, y: eye.y - 16, width: 32, height: 32))
         }
@@ -43,7 +43,7 @@ private func drawFace(awake: Bool, in ctx: CGContext, color: NSColor) {
     ctx.fillPath()
 
     // Put the pupils back in the open eyes.
-    if awake {
+    if stayAwake {
         ctx.setBlendMode(.normal)
         for eye in [eyeLeft, eyeRight] {
             ctx.fillEllipse(in: CGRect(x: eye.x - 6.5, y: eye.y - 6.5, width: 13, height: 13))
@@ -56,11 +56,11 @@ private func drawFace(awake: Bool, in ctx: CGContext, color: NSColor) {
 }
 
 /// A template image for the menu bar. macOS gives it the correct colour.
-func statusImage(awake: Bool, size: CGFloat = 18, color: NSColor = .black) -> NSImage {
+func statusImage(stayAwake: Bool, size: CGFloat = 18, color: NSColor = .black) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
         guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
         ctx.scaleBy(x: size / 100, y: size / 100)
-        drawFace(awake: awake, in: ctx, color: color)
+        drawFace(stayAwake: stayAwake, in: ctx, color: color)
         return true
     }
     image.isTemplate = true
@@ -77,7 +77,7 @@ func appIcon(size: CGFloat) -> NSImage {
         ctx.setFillColor(NSColor(red: 0.16, green: 0.18, blue: 0.36, alpha: 1).cgColor)
         ctx.fillPath()
         ctx.translateBy(x: 50, y: 50); ctx.scaleBy(x: 0.72, y: 0.72); ctx.translateBy(x: -50, y: -50)
-        drawFace(awake: true, in: ctx, color: NSColor(white: 0.97, alpha: 1))
+        drawFace(stayAwake: true, in: ctx, color: NSColor(white: 0.97, alpha: 1))
         return true
     }
 }
